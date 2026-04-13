@@ -1,61 +1,11 @@
 (function() {
-    const API_BASE = '/api';
-
-    const mockKnowledgeItems = [
-        {
-            id: 'item-001',
-            title: 'Spring Boot 集成 Spring AI 指南',
-            content: 'Spring Boot 集成 Spring AI 的步骤如下：\n\n1. 在 pom.xml 中添加依赖\n2. 配置 Ollama 连接信息\n3. 创建 ChatClient Bean\n4. 配置 VectorStore 和 ChatMemory\n5. 实现 RAG 流程\n\n这个集成可以让应用具备 AI 对话和检索增强生成能力。',
-            tags: ['Spring', 'AI', '集成'],
-            source: '手动录入',
-            createTime: '2026-04-10 14:30:00'
-        },
-        {
-            id: 'item-002',
-            title: 'RAG 技术原理解析',
-            content: 'RAG（Retrieval-Augmented Generation）是一种混合 AI 技术，结合了检索系统和生成模型的优势。\n\n核心原理：\n1. 检索阶段：从知识库中检索与问题相关的文档片段\n2. 增强阶段：将检索结果作为上下文添加到提示词\n3. 生成阶段：LLM 基于增强后的提示词生成回答\n\n优势：\n- 解决 LLM 知识时效性问题\n- 减少幻觉，提高准确性\n- 可追溯答案来源\n- 支持领域知识定制',
-            tags: ['RAG', '原理', 'AI'],
-            source: '手动录入',
-            createTime: '2026-04-09 10:15:00'
-        },
-        {
-            id: 'item-003',
-            title: 'ChromaDB 向量数据库简介',
-            content: 'ChromaDB 是一个开源的向量数据库，专为 AI 应用设计。\n\n主要特点：\n1. 轻量级，易于部署\n2. 支持多种嵌入模型\n3. 提供 Python 和 JavaScript SDK\n4. 支持元数据过滤\n5. 可以本地或分布式部署\n\n适用场景：\n- AI 原型开发\n- 小规模向量检索\n- 语义搜索应用\n- RAG 系统的知识库',
-            tags: ['ChromaDB', '向量数据库'],
-            source: 'document:vector-intro.pdf',
-            createTime: '2026-04-08 16:45:00'
-        },
-        {
-            id: 'item-004',
-            title: 'Ollama 本地 LLM 运行指南',
-            content: 'Ollama 是一个本地运行大语言模型的平台。\n\n支持模型：\n- Llama 2\n- Mistral\n- Code Llama\n- 等多种开源模型\n\n使用方法：\n1. 安装 Ollama\n2. 拉取模型：ollama pull llama2\n3. 运行模型：ollama run llama2\n4. 通过 API 调用\n\n优势：\n- 隐私保护，数据不出本地\n- 无需云服务费用\n- 支持 GPU 加速',
-            tags: ['Ollama', 'LLM', '本地部署'],
-            source: 'document:ollama-guide.pdf',
-            createTime: '2026-04-07 09:20:00'
-        },
-        {
-            id: 'item-005',
-            title: '文本分割策略最佳实践',
-            content: '在 RAG 系统中，文本分割是影响检索效果的关键步骤。\n\n常见策略：\n1. 固定长度分割\n   - 优点：简单快速\n   - 缺点：可能打断语义单元\n\n2. 句子级别分割\n   - 按句子边界分割\n   - 保持语义完整性\n\n3. 语义分割\n   - 使用模型识别语义单元\n   - 效果最好但复杂度高\n\n4. 递归字符分割\n   - 尝试多种分隔符\n   - 平衡效果和性能\n\n建议根据具体文档类型选择合适的策略。',
-            tags: ['文本分割', 'RAG', '最佳实践'],
-            source: '手动录入',
-            createTime: '2026-04-06 11:00:00'
-        },
-        {
-            id: 'item-006',
-            title: 'Apache Tika 文档解析使用指南',
-            content: 'Apache Tika 是一个内容分析工具，支持多种文档格式。\n\n支持的格式：\n- PDF\n- Microsoft Office (Word, Excel, PowerPoint)\n- HTML\n- TXT\n- 图像（OCR）\n- 邮件\n- 音频/视频元数据\n\n使用示例：\n\nParser parser = new AutoDetectParser();\nContentHandler handler = new BodyContentHandler();\nMetadata metadata = new Metadata();\nparser.parse(inputStream, handler, metadata, new ParseContext());\nString content = handler.toString();\n\n优势：\n- 统一接口\n- 自动检测格式\n- 提取元数据\n- 支持海量格式',
-            tags: ['Apache Tika', '文档解析'],
-            source: 'document:tika-tutorial.pdf',
-            createTime: '2026-04-05 14:30:00'
-        }
-    ];
+    const API_BASE = 'http://localhost:8080/api';
 
     let knowledgeItems = [];
     let currentPage = 1;
-    let pageSize = 5;
+    let pageSize = 10;
     let totalItems = 0;
+    let searchKeyword = '';
     let currentTags = [];
     let editTags = [];
     let deleteTargetId = null;
@@ -101,10 +51,28 @@
     }
 
     function loadKnowledgeItems() {
-        knowledgeItems = [...mockKnowledgeItems];
-        totalItems = knowledgeItems.length;
-        renderTable();
-        renderPagination();
+        fetch(API_BASE + '/knowledge/items?page=' + (currentPage - 1) + '&size=' + pageSize + (searchKeyword ? '&keyword=' + encodeURIComponent(searchKeyword) : ''))
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200) {
+                    knowledgeItems = data.data.items.map(item => ({
+                        id: item.id,
+                        title: item.title,
+                        content: item.contentPreview,
+                        contentFull: item.contentPreview,
+                        tags: item.tags ? item.tags.split(',') : [],
+                        source: item.source,
+                        createTime: item.createdAt
+                    }));
+                    totalItems = data.data.total;
+                    renderTable();
+                    renderPagination();
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load knowledge items:', err);
+                showToast('加载知识库失败', 'error');
+            });
     }
 
     function renderTable() {
@@ -176,23 +144,33 @@
     }
 
     function showDetail(id) {
-        const item = knowledgeItems.find(i => i.id === id);
-        if (!item) return;
-
-        const content = document.getElementById('detailContent');
-        content.innerHTML = `
-            <span class="label">标题</span>
-            <div class="content">${escapeHtml(item.title)}</div>
-            <span class="label">标签</span>
-            <div class="content">${item.tags.map(t => `<span style="display: inline-block; padding: 2px 8px; background: #e3f2fd; border-radius: 4px; margin: 2px; font-size: 12px;">${escapeHtml(t)}</span>`).join('')}</div>
-            <span class="label">来源</span>
-            <div class="content">${escapeHtml(item.source)}</div>
-            <span class="label">创建时间</span>
-            <div class="content">${item.createTime}</div>
-            <span class="label">内容</span>
-            <div class="content">${escapeHtml(item.content)}</div>
-        `;
-        detailModal.classList.add('show');
+        fetch(API_BASE + '/knowledge/items/' + id)
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200) {
+                    const item = data.data;
+                    const content = document.getElementById('detailContent');
+                    content.innerHTML = `
+                        <span class="label">标题</span>
+                        <div class="content">${escapeHtml(item.title)}</div>
+                        <span class="label">标签</span>
+                        <div class="content">${(item.tags || '').split(',').map(t => `<span style="display: inline-block; padding: 2px 8px; background: #e3f2fd; border-radius: 4px; margin: 2px; font-size: 12px;">${escapeHtml(t)}</span>`).join('')}</div>
+                        <span class="label">来源</span>
+                        <div class="content">${escapeHtml(item.source)}</div>
+                        <span class="label">创建时间</span>
+                        <div class="content">${item.createdAt}</div>
+                        <span class="label">内容</span>
+                        <div class="content">${escapeHtml(item.contentPreview || '')}</div>
+                    `;
+                    detailModal.classList.add('show');
+                } else {
+                    showToast('获取详情失败', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load detail:', err);
+                showToast('获取详情失败', 'error');
+            });
     }
 
     function hideDetail() {
@@ -276,58 +254,94 @@
     }
 
     function updateKnowledgeItem(id, title, content, tags) {
-        const item = knowledgeItems.find(i => i.id === id);
-        if (item) {
-            item.title = title;
-            item.content = content;
-            item.tags = tags;
-            renderTable();
-        }
+        fetch(API_BASE + '/knowledge/items/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: title,
+                content: content,
+                tags: tags.join(',')
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                loadKnowledgeItems();
+                return true;
+            } else {
+                showToast(data.message || '更新失败', 'error');
+                return false;
+            }
+        })
+        .catch(err => {
+            console.error('Failed to update knowledge item:', err);
+            showToast('更新知识条目失败', 'error');
+            return false;
+        });
     }
 
     function deleteKnowledgeItem(id) {
-        knowledgeItems = knowledgeItems.filter(i => i.id !== id);
-        totalItems = knowledgeItems.length;
+        fetch(API_BASE + '/knowledge/items/' + id, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200) {
+                    knowledgeItems = knowledgeItems.filter(i => i.id !== id);
+                    totalItems--;
 
-        const totalPages = Math.ceil(totalItems / pageSize);
-        if (currentPage > totalPages) {
-            currentPage = Math.max(1, totalPages);
-        }
+                    const totalPages = Math.ceil(totalItems / pageSize);
+                    if (currentPage > totalPages) {
+                        currentPage = Math.max(1, totalPages);
+                    }
 
-        renderTable();
-        renderPagination();
+                    renderTable();
+                    renderPagination();
+                    showToast('知识条目已删除', 'success');
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to delete knowledge item:', err);
+                showToast('删除知识条目失败', 'error');
+            });
+    }
+
+    function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        uploadProgress.style.display = 'block';
+        progressBar.style.width = '0%';
+
+        fetch(API_BASE + '/knowledge/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                uploadProgress.style.display = 'none';
+                progressBar.style.width = '0%';
+                loadKnowledgeItems();
+                showToast('文件上传成功', 'success');
+            } else {
+                uploadProgress.style.display = 'none';
+                progressBar.style.width = '0%';
+                showToast(data.message || '上传失败', 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Upload failed:', err);
+            uploadProgress.style.display = 'none';
+            progressBar.style.width = '0%';
+            showToast('文件上传失败', 'error');
+        });
     }
 
     function simulateFileUpload(files) {
         const file = files[0];
         if (!file) return;
-
-        uploadProgress.style.display = 'block';
-        progressBar.style.width = '0%';
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 30;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-
-                setTimeout(() => {
-                    uploadProgress.style.display = 'none';
-                    progressBar.style.width = '0%';
-
-                    addKnowledgeItem(
-                        '文档: ' + file.name,
-                        `已成功解析文档内容。这是 ${file.name} 的文本内容预览。在实际应用中，这里会显示 Apache Tika 提取的实际文本内容。\n\n文件大小: ${(file.size / 1024).toFixed(2)} KB\n文件类型: ${file.type || 'unknown'}`,
-                        ['文档上传', file.name.split('.').pop().toUpperCase()],
-                        `document:${file.name}`
-                    );
-
-                    showToast('文件上传成功', 'success');
-                }, 500);
-            }
-            progressBar.style.width = progress + '%';
-        }, 200);
+        uploadFile(file);
     }
 
     document.getElementById('backBtn').addEventListener('click', () => {
@@ -344,11 +358,31 @@
             return;
         }
 
-        addKnowledgeItem(title, content, [...currentTags], '手动录入');
-        manualForm.reset();
-        currentTags = [];
-        renderTags();
-        showToast('知识条目添加成功', 'success');
+        fetch(API_BASE + '/knowledge/manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: title,
+                content: content,
+                tags: currentTags.join(',')
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                manualForm.reset();
+                currentTags = [];
+                renderTags();
+                loadKnowledgeItems();
+                showToast('知识条目添加成功', 'success');
+            } else {
+                showToast(data.message || '添加失败', 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Failed to add knowledge item:', err);
+            showToast('添加知识条目失败', 'error');
+        });
     });
 
     tagInput.addEventListener('keydown', (e) => {
@@ -400,22 +434,9 @@
     });
 
     document.getElementById('searchBtn').addEventListener('click', () => {
-        const keyword = searchInput.value.trim().toLowerCase();
-        if (keyword) {
-            const filtered = mockKnowledgeItems.filter(item =>
-                item.title.toLowerCase().includes(keyword) ||
-                item.content.toLowerCase().includes(keyword) ||
-                item.tags.some(t => t.toLowerCase().includes(keyword))
-            );
-            knowledgeItems = filtered;
-            totalItems = filtered.length;
-            currentPage = 1;
-            renderTable();
-            renderPagination();
-            showToast(`找到 ${totalItems} 条相关结果`, 'success');
-        } else {
-            loadKnowledgeItems();
-        }
+        searchKeyword = searchInput.value.trim();
+        currentPage = 1;
+        loadKnowledgeItems();
     });
 
     searchInput.addEventListener('keydown', (e) => {

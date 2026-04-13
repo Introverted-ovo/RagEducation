@@ -17,14 +17,16 @@ spring:
       chroma:
         base-url: http://localhost:8000
         collection-name: rag-knowledge-base
-        tenant: SpringAiTenant
-        database: SpringAiDatabase
 
   datasource:
     url: jdbc:h2:file:./data/ragdb
     driver-class-name: org.h2.Driver
     username: sa
     password:
+
+  sql:
+    init:
+      mode: always
 
   h2:
     console:
@@ -37,5 +39,5 @@ server:
 app:
   rag:
     default-top-k: 5
-    similarity-threshold: 0.7
+    similarity-threshold: 0.0
     upload-path: ./uploads

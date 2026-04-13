@@ -9,14 +9,35 @@ import reactor.core.publisher.Flux;
 public class ChatController {
 
     private final RAGService ragService;
+    private final ConversationService conversationService;
 
-    public ChatController(RAGService ragService) {
+    public ChatController(RAGService ragService, ConversationService conversationService) {
         this.ragService = ragService;
+        this.conversationService = conversationService;
     }
 
     @PostMapping("/stream")
     public Flux<String> streamChat(@RequestBody ChatRequest request) {
-        return ragService.query(request.getMessage());
+        String conversationId = request.getConversationId();
+        String userMessage = request.getMessage();
+
+        if (conversationId != null && userMessage != null) {
+            conversationService.addUserMessage(conversationId, userMessage);
+        }
+
+        Flux<String> responseFlux = ragService.query(conversationId, userMessage);
+
+        if (conversationId != null) {
+            responseFlux = responseFlux
+                    .collectList()
+                    .flatMapMany(completeResponse -> {
+                        String fullResponse = String.join("", completeResponse);
+                        conversationService.addAssistantMessage(conversationId, fullResponse);
+                        return Flux.fromIterable(completeResponse);
+                    });
+        }
+
+        return responseFlux;
     }
 
     public static class ChatRequest {
