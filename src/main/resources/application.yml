@@ -40,4 +40,5 @@ app:
   rag:
     default-top-k: 5
     similarity-threshold: 0.0
+    rerank-top-k: 3
     upload-path: ./uploads
